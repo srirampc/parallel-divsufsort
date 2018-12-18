@@ -58,7 +58,7 @@ note:
 
 
 template<class saidx_t>
-void initBStarBuckets(const sauchar_t *T, saidx_t *SA, saidx_t* bucket_B, saidx_t n, saidx_t m, saidx_t* PAb) {
+void init_typeBstar(const sauchar_t *T, saidx_t *SA, saidx_t* bucket_B, saidx_t m, saidx_t* PAb) {
     saidx_t num_blocks = std::min(m, (saidx_t)getWorkers());
     saidx_t block_size = (m-1) / num_blocks + 1;    
     saidx_t* block_bucket_cnt = newA(saidx_t, num_blocks*BUCKET_B_SIZE);
@@ -194,19 +194,16 @@ void initBuckets(const sauchar_t *T, saidx_t *SA,
 	}
 }
 
-
-/* Sorts suffixes of type B*. */
 template<class saidx_t>
 static
 saidx_t
-sort_typeBstar(const sauchar_t *T, saidx_t *SA,
-               saidx_t *bucket_A, saidx_t *bucket_B,
-               saidx_t n) {
-  saidx_t *PAb, *ISAb, *buf;
-  saidx_t k, t, m, bufsize;
-  saint_t c0, c1;
-
-  /* Initialize bucket arrays. */
+init_buckets(const sauchar_t *T, saidx_t *SA,
+			saidx_t *bucket_A, saidx_t *bucket_B,
+			saidx_t n,
+			saidx_t& m,
+			saidx_t& num_blocks, saidx_t& block_size,
+			saidx_t*& bstar_count
+		   			   ){
   //parallel_for(saidx_t i_ = 0; i_ < BUCKET_A_SIZE; ++i_) { bucket_A[i_] = 0; }
   //parallel_for(saidx_t i_ = 0; i_ < BUCKET_B_SIZE; ++i_) { bucket_B[i_] = 0; }
   memset(bucket_A, 0, sizeof(saidx_t)*BUCKET_A_SIZE);
@@ -215,17 +212,26 @@ sort_typeBstar(const sauchar_t *T, saidx_t *SA,
   /* Count the number of occurrences of the first one or two characters of each
      type A, B and B* suffix. Moreover, store the beginning position of all
      type B* suffixes into the array SA. */
-  saidx_t num_blocks = std::min(n, (saidx_t)getWorkers());
-  saidx_t block_size = (n-1) / num_blocks + 1;    
-  saidx_t* bstar_count = newA(saidx_t, num_blocks);
+  num_blocks = std::min(n, (saidx_t)getWorkers());
+  block_size = (n-1) / num_blocks + 1;    
+  bstar_count = newA(saidx_t, num_blocks);
   memset(bstar_count, 0, sizeof(saidx_t)*num_blocks);
   initBuckets(T, SA, bucket_A, bucket_B, n, m, num_blocks, block_size, bstar_count);
 
-    PAb = SA + n - m; ISAb = SA + m;
-  if(0 < m) {
-    initBStarBuckets(T, SA, bucket_B, n, m, PAb);
+  return num_blocks;
+}
 
-    /* Sort the type B* substrings using sssort. */
+template<class saidx_t>
+static
+void
+string_sort_typeBstar(const sauchar_t *T, saidx_t *SA,
+                 saidx_t *bucket_B,
+			   saidx_t n, saidx_t m,
+			   saidx_t *PAb
+			   ){
+  saidx_t *buf;
+  saidx_t bufsize;
+
     buf = SA + m, bufsize = n - (2 * m);
     bufsize = 0; // Dont use buffer when multithreadding
     parallel_for(saint_t c0_ = 0; c0_ < ALPHABET_SIZE-1; ++c0_) {
@@ -244,7 +250,17 @@ sort_typeBstar(const sauchar_t *T, saidx_t *SA,
         }
       }
     }
-    /* Compute ranks of type B* substrings. */
+
+}
+
+template<class saidx_t>
+static
+void
+rank_typeBstar(saidx_t *SA,
+			   saidx_t& m, 
+               saidx_t *ISAb,
+			   saidx_t& num_blocks
+			   ){
     num_blocks = std::min(m, (saidx_t)getWorkers());
     saidx_t block_size = (m-1) / num_blocks + 1;
     saidx_t* block_start_rank = newA(saidx_t,num_blocks);
@@ -289,15 +305,33 @@ sort_typeBstar(const sauchar_t *T, saidx_t *SA,
     }
     free(block_start_rank);
 
-    buf = SA + (2*m);
-    bufsize = n - (2*m);
+}
+
+template<class saidx_t>
+static
+void
+trsort_par(saidx_t *SA, saidx_t& m, saidx_t *ISAb)
+{
+    //buf = SA + (2*m);
+    //bufsize = n - (2*m);
     //parallelrangelite(ISAb, SA, m, buf, bufsize);
     if (sizeof(saidx_t) == 4) 
     	parallelrangelite((uint32_t*)ISAb, (uint32_t*)SA, (uint32_t)m);
     else
     	parallelrangelite((uint64_t*)ISAb, (uint64_t*)SA, (uint64_t)m);
     //trsort(ISAb, SA, m, 1); // TODO reset.
-    // TODO is the next step neccessary if SA is already sorted by paralleltrsort?
+
+}
+template<class saidx_t>
+static
+void
+update_typeBstar_order(const sauchar_t *T, saidx_t *SA,
+                        saidx_t& n, 
+						saidx_t* ISAb, 
+						saidx_t& num_blocks, saidx_t& block_size,
+						saidx_t*& bstar_count
+
+){
     num_blocks = std::min(n, (saidx_t)getWorkers());
     block_size = (n-1) / num_blocks + 1; // Use same blocks as when initializing bstar_count !
     /* Set the sorted order of type B* suffixes. */
@@ -324,7 +358,18 @@ sort_typeBstar(const sauchar_t *T, saidx_t *SA,
 		}
     }
     free(bstar_count);
+	bstar_count = nullptr;
+}
+
+template<class saidx_t>
+static
+void
+update_bucket_bounds(saidx_t* SA,
+                     saidx_t* bucket_A, saidx_t* bucket_B,
+                     saidx_t n, saidx_t m) {
     // Can be parallized but time is neglectable compared to the rest
+    saidx_t k, t;
+    saint_t c0, c1;
     saidx_t i,j;
     /* Calculate the index of start/end point of each bucket. */
     BUCKET_B(ALPHABET_SIZE - 1, ALPHABET_SIZE - 1) = n; /* end point */
@@ -341,6 +386,46 @@ sort_typeBstar(const sauchar_t *T, saidx_t *SA,
       BUCKET_BSTAR(c0, c0 + 1) = i - BUCKET_B(c0, c0) + 1; /* start point */
       BUCKET_B(c0, c0) = i; /* end point */
     }
+}
+
+/* Sorts suffixes of type B*. */
+template<class saidx_t>
+static
+saidx_t
+sort_typeBstar(const sauchar_t *T, saidx_t *SA,
+               saidx_t *bucket_A, saidx_t *bucket_B,
+               saidx_t n) {
+  saidx_t *PAb, *ISAb;
+  saidx_t m;
+  saidx_t num_blocks, block_size;
+  saidx_t *bstar_count;
+
+  /* Initialize bucket arrays. */
+  init_buckets(T, SA, bucket_A, bucket_B, n, m,
+  			   num_blocks, block_size, bstar_count);
+
+  if(0 < m) {
+    PAb = SA + n - m; ISAb = SA + m;
+
+    /* Sort the type B* suffixes by their first two characters. */
+    init_typeBstar(T, SA, bucket_B, m, PAb);
+
+    /* Sort the type B* substrings using sssort. */
+	string_sort_typeBstar(T, SA, bucket_B, n, m, PAb);
+
+    /* Compute ranks of type B* substrings. */
+	rank_typeBstar(SA, m, ISAb, num_blocks);
+
+    /* Construct the inverse suffix array of type B* suffixes using trsort. */
+	trsort_par(SA, m, ISAb);
+
+    // TODO is the next step neccessary if SA is already sorted by paralleltrsort?
+    /* Set the sorted order of type B* suffixes. */
+	update_typeBstar_order(T, SA, n, ISAb,
+							 num_blocks, block_size, bstar_count);
+
+    /* Calculate the index of start/end point of each bucket. */
+	update_bucket_bounds(SA, bucket_A, bucket_B, n, m);
   }
   return m;
 }
@@ -526,19 +611,14 @@ void fillASeq (saidx_t* start, saidx_t* end, saidx_t* bucket_A,
 	}
 }
 
-
-/* Constructs the suffix array by using the sorted order of type B* suffixes. */
 template<class saidx_t>
 static
 void
-construct_SA(const sauchar_t *T, saidx_t *SA,
+induce_typeB(const sauchar_t *T, saidx_t *SA,
              saidx_t *bucket_A, saidx_t *bucket_B,
-             saidx_t n, saidx_t m) {
-  const saidx_t num_blocks = getWorkers();
-  saidx_t* block_bucket_cnt = newA(saidx_t, num_blocks*BUCKET_A_SIZE);
-  cached_bucket_writer<saidx_t> bucket_writer(num_blocks, block_bucket_cnt, BUCKET_A_SIZE, SA); 
-  // Use buffered writing to handle chache invalidations
-  if(0 < m) {
+			 cached_bucket_writer<saidx_t>& bucket_writer,
+			 saidx_t*& block_bucket_cnt,
+			 saidx_t num_blocks) {
 	  /* Construct the sorted order of type B suffixes by using
 	     the sorted order of type B* suffixes. */
 	  
@@ -583,6 +663,17 @@ construct_SA(const sauchar_t *T, saidx_t *SA,
 			  //fillBBSeq(end, SA + BUCKET_BSTAR(c1,c1+1), bucket_B, c1, T, SA); 
 			  }
 		  } 
+}
+
+template<class saidx_t>
+static
+void
+induce_typeA(const sauchar_t *T, saidx_t *SA,
+             saidx_t *bucket_A, saidx_t *bucket_B,
+             saidx_t& n, 
+			 cached_bucket_writer<saidx_t>& bucket_writer,
+			 saidx_t*& block_bucket_cnt,
+			 saidx_t num_blocks) {
       /* Construct the suffix array by using
          the sorted order of type B suffixes. */
       
@@ -633,6 +724,26 @@ construct_SA(const sauchar_t *T, saidx_t *SA,
               }
           }
       }
+}
+/* Constructs the suffix array by using the sorted order of type B* suffixes. */
+template<class saidx_t>
+static
+void
+construct_SA(const sauchar_t *T, saidx_t *SA,
+             saidx_t *bucket_A, saidx_t *bucket_B,
+             saidx_t n, saidx_t m) {
+  const saidx_t num_blocks = getWorkers();
+  saidx_t* block_bucket_cnt = newA(saidx_t, num_blocks*BUCKET_A_SIZE);
+  cached_bucket_writer<saidx_t> bucket_writer(num_blocks, block_bucket_cnt, BUCKET_A_SIZE, SA); 
+  // Use buffered writing to handle chache invalidations
+  if(0 < m) {
+	  /* Construct the sorted order of type B suffixes by using
+	     the sorted order of type B* suffixes. */
+		 induce_typeB(T, SA, bucket_A, bucket_B, bucket_writer, block_bucket_cnt, num_blocks);
+
+      /* Construct the suffix array by using
+         the sorted order of type B suffixes. */
+		 induce_typeA(T, SA, bucket_A, bucket_B, n, bucket_writer, block_bucket_cnt, num_blocks);
   } else {
     parallel_for (saidx_t i = 0; i < n; ++i)
         SA[i] = n - i - 1;
@@ -734,8 +845,26 @@ divsufsort(const sauchar_t *T, saidx_t *SA, saidx_t n) {
   
   /* Suffixsort. */
   if((bucket_A != NULL) && (bucket_B != NULL)) {
+#if defined(PHASET)
+		auto start = std::chrono::steady_clock::now();
+#endif
     m = sort_typeBstar(T, SA, bucket_A, bucket_B, n);
+#if defined(PHASET)
+		auto end = std::chrono::steady_clock::now();
+		auto diff = end - start;
+		std::cout << "PHASE 1 " <<	std::chrono::duration <double, milli> (diff).count() << " ms" << std::endl;
+		std::cout.flush();
+		start = std::chrono::steady_clock::now();
+#endif
     construct_SA(T, SA, bucket_A, bucket_B, n, m);
+
+#if defined(PHASET)
+		end = std::chrono::steady_clock::now();
+		diff = end - start;
+		std::cout << "PHASE 2 " <<	std::chrono::duration <double, milli> (diff).count() << " ms" << std::endl;
+		std::cout.flush();
+		start = std::chrono::steady_clock::now();
+#endif
   } else {
     err = -2;
   }

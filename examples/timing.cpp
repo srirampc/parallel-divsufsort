@@ -39,14 +39,16 @@ int main(int argc, char* args[]) {
 	}
 	num_type size = text.size();
 	num_type *SA = new num_type[size];
+	double total_time = 0.0;
 	for (int i = 0; i < times; ++i) {
 		auto start = chrono::steady_clock::now();
 		divsufsort((sauchar_t*)text.data(), SA, size);
 		auto end = chrono::steady_clock::now();
 		auto diff = end - start;
-		cout <<	chrono::duration <double, milli> (diff).count() / 1000.0 << ", ";
-		cout.flush();
+		total_time += std::chrono::duration <double, milli> (diff).count();
 	}
+	cout << total_time / times	<< "ms ";
+	cout.flush();
 	cout << getPeakRSS() / (1024*1024)<< endl;
 	if (sufcheck((sauchar_t*)text.data(), SA, size, false)) {
 		cout << "Sufcheck failed!" << endl;
