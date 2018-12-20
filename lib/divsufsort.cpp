@@ -845,26 +845,8 @@ divsufsort(const sauchar_t *T, saidx_t *SA, saidx_t n) {
   
   /* Suffixsort. */
   if((bucket_A != NULL) && (bucket_B != NULL)) {
-#if defined(PHASET)
-		auto start = std::chrono::steady_clock::now();
-#endif
     m = sort_typeBstar(T, SA, bucket_A, bucket_B, n);
-#if defined(PHASET)
-		auto end = std::chrono::steady_clock::now();
-		auto diff = end - start;
-		std::cout << "PHASE 1 " <<	std::chrono::duration <double, milli> (diff).count() << " ms" << std::endl;
-		std::cout.flush();
-		start = std::chrono::steady_clock::now();
-#endif
     construct_SA(T, SA, bucket_A, bucket_B, n, m);
-
-#if defined(PHASET)
-		end = std::chrono::steady_clock::now();
-		diff = end - start;
-		std::cout << "PHASE 2 " <<	std::chrono::duration <double, milli> (diff).count() << " ms" << std::endl;
-		std::cout.flush();
-		start = std::chrono::steady_clock::now();
-#endif
   } else {
     err = -2;
   }
@@ -918,4 +900,32 @@ divsufsort(const sauchar_t *T, int32_t *SA, int32_t n) {
 saint_t
 divsufsort(const sauchar_t *T, int64_t *SA, int64_t n) {
 	return divsufsort<int64_t>(T, SA, n);
+}
+
+int32_t
+sort_typeBstar(const sauchar_t *T, int32_t *SA,
+               int32_t *bucket_A, int32_t *bucket_B,
+               int32_t n){
+	return sort_typeBstar<int32_t>(T, SA, bucket_A, bucket_B, n);
+}
+
+int64_t
+sort_typeBstar(const sauchar_t *T, int64_t *SA,
+               int64_t *bucket_A, int64_t *bucket_B,
+               int64_t n){
+	return sort_typeBstar<int64_t>(T, SA, bucket_A, bucket_B, n);
+}
+
+void
+construct_SA(const sauchar_t *T, int32_t *SA,
+             int32_t *bucket_A, int32_t *bucket_B,
+             int32_t n, int32_t m) {
+	construct_SA<int32_t>(T, SA, bucket_A, bucket_B, n, m);
+}
+
+void
+construct_SA(const sauchar_t *T, int64_t *SA,
+             int64_t *bucket_A, int64_t *bucket_B,
+             int64_t n, int64_t m) {
+	construct_SA<int64_t>(T, SA, bucket_A, bucket_B, n, m);
 }

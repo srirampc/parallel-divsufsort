@@ -6,14 +6,6 @@
 #cmakedefine CILK
 #cmakedefine CILKP
 #cmakedefine OPENMP
-#cmakedefine PHASET
-#cmakedefine SORTT
-
-#if defined(PHASET)
-#include <chrono>
-#include <fstream>
-#include <iostream>
-#endif 
 
 // cilkarts cilk++
 #if defined(CILK)

@@ -12,7 +12,6 @@ set(PROJECT_DESCRIPTION "Parallel-divsufsort: Parallel almost in-place suffix ar
 option (CILK "Use intel implementation of cilkplus for parallization." OFF) 
 option (CILKP "Use gcc implementation of cilkplus for parallization." ON) 
 option (OPENMP "Use OpenMP for parallization for parallization." OFF) 
-option (PHASET "TIMINGS FOR EACH PHASE" ON)
 
 # Check settings.
 if ((CILKP AND OPENMP) OR (CILKP AND CILK) OR (OPENMP AND CILK))
