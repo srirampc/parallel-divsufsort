@@ -13,7 +13,7 @@ Installation
 ==========
 The following steps have been tested on Ubuntu 14.04 with gcc 5.3.0 and cmake 2.8.12.
 ```shell
-git clone https://github.com/jlabeit/parallel-divsufsort.git
+git clone https://github.com/srirampc/parallel-divsufsort.git
 cd parallel-divsufsort
 mkdir build
 cd build
